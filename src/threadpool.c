@@ -30,7 +30,7 @@ threadpool *threadpool_create(const size_t thread_number)
     return tp;
 }
 
-void threadpool_destroy(threadpool *tp, bool interrupt)
+void threadpool_destroy(threadpool *tp, const bool interrupt)
 {
     if (tp == NULL) return;
 
@@ -81,8 +81,10 @@ void *thread_routine(void *poolp)
             pthread_cond_wait(&pool->new_task_cond, &pool->queue_mutex);
 
         /* force interrupt */
+        pthread_mutex_lock(&pool->destroy_mutex);
         if (pool->interrupt)
         {
+            pthread_mutex_unlock(&pool->destroy_mutex);
             pthread_mutex_unlock(&pool->queue_mutex);
             break;
         }
@@ -90,9 +92,11 @@ void *thread_routine(void *poolp)
         /* finish all tasks and then close*/
         if (pool->close && pool->tasks->size == 0 && pool->started == pool->terminated)
         {
+            pthread_mutex_unlock(&pool->destroy_mutex);
             pthread_mutex_unlock(&pool->queue_mutex);
             break;
         }
+        pthread_mutex_unlock(&pool->destroy_mutex);
 
         /**
          * if we get past the loop it means that there is a taks to
